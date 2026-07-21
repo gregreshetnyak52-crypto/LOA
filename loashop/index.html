@@ -882,26 +882,23 @@ function sendTG(msg) {
     }).catch(err => console.log('TG error:', err));
 }
 
-let selectedPvz = null;
-
 function openDeliveryModal() {
     if (!currentUser) return openAuth();
     if (!cart.length) return alert('Корзина пуста');
-    
+
     const nameEl = document.getElementById('order-name');
     const phoneEl = document.getElementById('order-phone');
     if (currentUser.name) nameEl.value = currentUser.name;
     if (currentUser.phone) phoneEl.value = currentUser.phone;
-    
+
     const items = cart.map(i => i.name).join(', ');
     const total = cart.reduce((s,i) => s+i.price, 0);
     document.getElementById('order-summary-text').innerHTML =
         '<b>Ваш заказ:</b><br>' + items + '<br><b>Итого: ' + total.toLocaleString('ru') + ' р.</b>';
-    
+
     document.getElementById('step-data').style.display = 'block';
     document.getElementById('step-pvz').style.display = 'none';
-    selectedPvz = null;
-    document.getElementById('selected-pvz-block').style.display = 'none';
+    document.getElementById('order-address').value = '';
     document.getElementById('submit-order-btn').disabled = true;
     document.getElementById('delivery-modal').style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -928,29 +925,21 @@ function backToDataStep() {
     document.getElementById('step-pvz').style.display = 'none';
 }
 
-function selectPvz(address, hours) {
-    selectedPvz = {addr: address, hours: hours};
-    document.getElementById('selected-pvz-text').textContent = address;
-    document.getElementById('selected-pvz-block').style.display = 'block';
-    document.getElementById('submit-order-btn').disabled = false;
-}
-
 function submitOrder() {
     const name = document.getElementById('order-name').value.trim();
     const phone = document.getElementById('order-phone').value.trim();
     const tg = document.getElementById('order-tg').value.trim();
     if (!name || !phone) return alert('Заполните имя и телефон');
 
-    const selectedPvz = window.selectedPvz;
-    if (!selectedPvz) {
-        alert('Выберите пункт выдачи');
+    const pvzAddress = document.getElementById('order-address').value.trim();
+    if (!pvzAddress) {
+        alert('Укажите адрес доставки');
         return;
     }
 
     const items = cart.map(i => i.name).join(', ');
     const total = cart.reduce((s,i) => s+i.price, 0);
     const date = new Date().toLocaleString('ru');
-    const pvzAddress = selectedPvz.address || selectedPvz.addr;
 
     // Один заказ на оба сценария (гость/залогинен) — иначе серверу (вебхуку оплаты) нечего
     // будет обновлять для гостей. Статус и оплата всегда стартуют в "ожидании" — клиент не
@@ -990,8 +979,7 @@ function submitOrder() {
             (tg ? `✈️ <b>Telegram:</b> ${tg}\n` : '') +
             `\n📦 <b>Товары:</b>\n${cart.map(i => '• ' + i.name + ' — ' + i.price.toLocaleString('ru') + ' р.').join('\n')}\n` +
             `💰 <b>Итого:</b> ${total.toLocaleString('ru')} р.\n\n` +
-            `🚚 <b>ПВЗ:</b> ${pvzAddress}\n` +
-            (selectedPvz.hours ? `🕐 <b>Часы работы:</b> ${selectedPvz.hours}\n` : '') +
+            `🚚 <b>Адрес:</b> ${pvzAddress}\n` +
             `📅 <b>Дата:</b> ${date}\n\n` +
             `━━━━━━━━━━━━━━━━━━\n` +
             `Заказ #${shortId}`
@@ -1287,40 +1275,27 @@ loadProductsFromSupabase();
         <div id="order-summary-text" style=""></div>
       </div>
 
-      <button onclick="goToDeliveryStep()" style="width:100%;background:#000;color:#fff;border:none;border-radius:40px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Unbounded',sans-serif;">Далее — выбрать ПВЗ →</button>
+      <button onclick="goToDeliveryStep()" style="width:100%;background:#000;color:#fff;border:none;border-radius:40px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Unbounded',sans-serif;">Далее — адрес доставки →</button>
     </div>
 
-    <!-- Шаг 2: ПВЗ (упрощенный, без карты, только поиск из вашего pvz.json) -->
+    <!-- Шаг 2: Адрес доставки (свободный ввод — базы ПВЗ нет) -->
     <div id="step-pvz" style="display:none; padding:0;">
       <div style="padding:16px 24px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:12px;">
         <button onclick="backToDataStep()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#000;">←</button>
         <div>
           <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#aaa;">Шаг 2 из 2</div>
-          <div style="font-size:14px; font-weight:700;">Выберите пункт выдачи</div>
+          <div style="font-size:14px; font-weight:700;">Адрес доставки</div>
         </div>
       </div>
 
-      <!-- Поиск города + список ПВЗ -->
-      <div style="padding:14px 16px;">
-        <div style="display:flex; gap:8px; margin-bottom:10px;">
-          <input id="pvz-city-search" class="order-input" type="text" placeholder="Введите город..." style="flex:1;padding:11px 14px;border:1.5px solid #e5e5e5;border-radius:10px;font-size:14px;font-family:'Unbounded',sans-serif;">
-          <button id="pvz-search-btn" style="background:#000;color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Unbounded',sans-serif;">Найти</button>
-        </div>
-        <div id="pvz-status" style="font-size:12px; color:#888; margin-bottom:12px; min-height:20px;">Введите город для поиска</div>
-        
-        <!-- Список ПВЗ будет вставлен сюда -->
-        <div id="pvz-list" style="max-height:320px; overflow-y:auto; border-top:1px solid #f0f0f0;"></div>
-      </div>
-
-      <!-- Выбранный ПВЗ -->
-      <div id="selected-pvz-block" style="display:none; padding:14px 16px; background:#f0fff4; border-top:1px solid #d4edda;">
-        <div style="font-size:12px; color:#28a745; font-weight:700; margin-bottom:4px;">✓ ПВЗ выбран</div>
-        <div id="selected-pvz-text" style="font-size:13px; font-weight:600;"></div>
+      <div style="padding:16px 24px;">
+        <textarea id="order-address" class="order-input" placeholder="Город и адрес или удобный пункт выдачи *" style="width:100%;min-height:90px;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;box-sizing:border-box;resize:vertical;"></textarea>
+        <div style="font-size:11px;color:#aaa;margin-top:8px;">Мы свяжемся с вами, чтобы согласовать точный способ и адрес доставки.</div>
       </div>
 
       <div style="padding:14px 16px; border-top:1px solid #f0f0f0;">
         <button id="submit-order-btn" onclick="submitOrder()" style="width:100%;background:#000;color:#fff;border:none;border-radius:40px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Unbounded',sans-serif;" disabled>Оплатить онлайн →</button>
-        <div style="text-align:center;font-size:11px;color:#aaa;margin-top:10px;">Выберите ПВЗ из списка для продолжения</div>
+        <div style="text-align:center;font-size:11px;color:#aaa;margin-top:10px;">Укажите адрес для продолжения</div>
       </div>
     </div>
 
@@ -1328,141 +1303,20 @@ loadProductsFromSupabase();
 </div>
 
 <script>
-// ============================================================
-// ПВЗ ПОИСК — РАБОЧАЯ ВЕРСИЯ
-// ============================================================
 (function() {
-    function initPvzSearch() {
-        console.log('initPvzSearch запущен');
-        
-        const cityInput = document.getElementById('pvz-city-search');
-        const searchBtn = document.getElementById('pvz-search-btn');
-        const statusDiv = document.getElementById('pvz-status');
-        const listDiv = document.getElementById('pvz-list');
-        const selectedBlock = document.getElementById('selected-pvz-block');
-        const selectedText = document.getElementById('selected-pvz-text');
+    function initAddressStep() {
+        const addressInput = document.getElementById('order-address');
         const submitBtn = document.getElementById('submit-order-btn');
-
-        if (!cityInput || !searchBtn) {
-            console.error('Не найдены элементы:', {cityInput, searchBtn});
-            return;
-        }
-
-        let selectedPvzObj = null;
-        let pvzData = null;
-
-        async function loadData() {
-            try {
-                statusDiv.innerHTML = '📥 Загрузка базы ПВЗ...';
-                const response = await fetch('/public/pvz.json');
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                pvzData = await response.json();
-                statusDiv.innerHTML = '✅ База загружена. Введите город для поиска.';
-                console.log('PVZ data loaded, городов:', Object.keys(pvzData).length);
-                return true;
-            } catch (err) {
-                console.error('Ошибка загрузки:', err);
-                statusDiv.innerHTML = '❌ Не удалось загрузить базу ПВЗ. Проверьте соединение.';
-                return false;
-            }
-        }
-
-        async function searchPvz(cityName) {
-            console.log('searchPvz вызван, город:', cityName);
-            
-            if (!cityName.trim()) {
-                statusDiv.innerHTML = '⚠ Введите название города';
-                listDiv.innerHTML = '';
-                return;
-            }
-
-            if (!pvzData) {
-                const loaded = await loadData();
-                if (!loaded) return;
-            }
-
-            statusDiv.innerHTML = '🔍 Поиск...';
-            listDiv.innerHTML = '';
-            
-            const foundCityKey = Object.keys(pvzData).find(key => 
-                key.toLowerCase() === cityName.trim().toLowerCase()
-            );
-            
-            if (!foundCityKey) {
-                statusDiv.innerHTML = `❌ Пункты выдачи для «${cityName}» не найдены.`;
-                listDiv.innerHTML = '';
-                return;
-            }
-            
-            const pvzArray = pvzData[foundCityKey];
-            if (!pvzArray || pvzArray.length === 0) {
-                statusDiv.innerHTML = `❌ Нет адресов для «${cityName}».`;
-                listDiv.innerHTML = '';
-                return;
-            }
-            
-            statusDiv.innerHTML = `✅ Найдено ${pvzArray.length} пунктов выдачи в городе «${foundCityKey}»:`;
-            
-            listDiv.innerHTML = '';
-            pvzArray.slice(0, 20).forEach((pvz) => {
-                const item = document.createElement('div');
-                item.style.cssText = 'padding:12px 0; border-bottom:1px solid #f0f0f0; cursor:pointer; transition:background 0.15s;';
-                item.onmouseover = () => item.style.background = '#f9f9f9';
-                item.onmouseout = () => item.style.background = '';
-                item.innerHTML = `
-                    <div style="font-size:13px; font-weight:700; color:#000;">📍 ${pvz.address || 'Адрес не указан'}</div>
-                    ${pvz.hours ? `<div style="font-size:12px; color:#555; margin-top:4px;">🕐 ${pvz.hours}</div>` : ''}
-                    ${pvz.comment ? `<div style="font-size:11px; color:#888; margin-top:2px;">${pvz.comment}</div>` : ''}
-                `;
-                item.onclick = () => {
-                    document.querySelectorAll('#pvz-list > div').forEach(el => el.style.background = '');
-                    item.style.background = '#e6f0ff';
-                    selectedPvzObj = pvz;
-                    window.selectedPvz = selectedPvzObj;   // 
-                    selectedText.textContent = pvz.address;
-                    selectedBlock.style.display = 'block';
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                    }
-                };
-                listDiv.appendChild(item);
-            });
-            
-            if (pvzArray.length > 20) {
-                const more = document.createElement('div');
-                more.style.cssText = 'padding:12px; text-align:center; color:#888; font-size:12px;';
-                more.innerHTML = `И еще ${pvzArray.length - 20} адресов...`;
-                listDiv.appendChild(more);
-            }
-        }
-        
-        searchBtn.addEventListener('click', () => searchPvz(cityInput.value));
-        cityInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') searchPvz(cityInput.value);
+        if (!addressInput || !submitBtn) return;
+        addressInput.addEventListener('input', () => {
+            submitBtn.disabled = !addressInput.value.trim();
         });
-        
-        window.getSelectedPvz = () => selectedPvzObj;
-        
-        if (window.submitOrder) {
-            const originalSubmitOrder = window.submitOrder;
-            window.submitOrder = function() {
-                const selected = window.getSelectedPvz();
-                if (!selected) {
-                    alert('Выберите пункт выдачи');
-                    return;
-                }
-                window.selectedPvz = selected;
-                return originalSubmitOrder();
-            };
-        }
-        
-        loadData();
     }
-    
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initPvzSearch);
+        document.addEventListener('DOMContentLoaded', initAddressStep);
     } else {
-        initPvzSearch();
+        initAddressStep();
     }
 })();
 </script>
