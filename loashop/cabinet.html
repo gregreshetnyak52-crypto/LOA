@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>Личный кабинет — Loa</title>
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Unbounded', sans-serif; background: #f5f5f5; color: #000; }
+
+        .account-nav { background: #fff; padding: 0 16px; height: 56px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; position: sticky; top: 0; color: #000; }
+        .account-nav a { text-decoration: none; color: #000; font-weight: 700; font-size: 14px; }
+        .account-body { padding: 20px 16px 40px; max-width: 700px; margin: 0 auto; color: #000; }
+
+        .acc-header { background: #000; color: #fff; border-radius: 20px; padding: 22px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
+        .acc-avatar { width: 56px; height: 56px; border-radius: 50%; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; flex-shrink: 0; }
+        .acc-card { background: #fff; border-radius: 20px; padding: 20px; margin-bottom: 16px; }
+        .acc-card h4 { margin-bottom: 12px; }
+
+        .auth-input { width: 100%; padding: 14px; border: 1.5px solid #e5e5e5; border-radius: 16px; font-size: 14px; margin-bottom: 12px; font-family: 'Unbounded'; }
+        .auth-submit { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 40px; font-weight: 700; font-size: 15px; cursor: pointer; }
+        .cart-checkout-btn { width: 100%; background: #000; color: #fff; border: none; border-radius: 40px; padding: 15px; font-size: 15px; font-weight: 700; cursor: pointer; margin-bottom: 10px; }
+
+        .order-status-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+        .status-new { background:#e8f4fd; color:#0066cc; }
+        .status-bought { background:#fff3cd; color:#856404; }
+        .status-shipped { background:#d4edff; color:#004499; }
+        .status-delivered { background:#d4edda; color:#155724; }
+        .status-cancelled { background:#fde8e8; color:#cc0000; }
+        .status-refund { background:#fde8e8; color:#cc0000; }
+
+        .order-card { background:#f9f9f9; border-radius:14px; padding:16px; margin-bottom:12px; border:1px solid #f0f0f0; }
+        .order-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+        .order-card-id { font-size:11px; color:#aaa; font-weight:600; }
+        .order-card-date { font-size:11px; color:#aaa; }
+        .order-card-items { font-size:13px; font-weight:600; color:#000; margin-bottom:6px; }
+        .order-card-pvz { font-size:12px; color:#555; margin-bottom:8px; }
+        .order-card-total { font-size:14px; font-weight:800; }
+        .order-status-steps { display:flex; gap:4px; margin-top:12px; overflow-x:auto; }
+        .status-step { flex-shrink:0; text-align:center; font-size:9px; font-weight:700; color:#ccc; }
+        .status-step.done { color:#000; }
+        .status-step.current { color:#000; }
+        .status-step-dot { width:8px; height:8px; border-radius:50%; background:#e0e0e0; margin:0 auto 4px; }
+        .status-step.done .status-step-dot { background:#000; }
+        .status-step.current .status-step-dot { background:#000; box-shadow:0 0 0 3px rgba(0,0,0,0.15); }
+
+        .login-wrap { max-width: 400px; margin: 60px auto; padding: 0 20px; }
+        .login-wrap h2 { margin-bottom: 20px; }
+        .login-wrap p { text-align: center; font-size: 12px; margin-top: 15px; cursor: pointer; opacity: 0.7; }
+    </style>
+</head>
+<body>
+
+<div class="account-nav">
+    <a href="index.html">← Назад</a>
+    <div>Loa</div>
+    <div style="width:50px;"></div>
+</div>
+
+<div class="login-wrap" id="login-wrap" style="display:none;">
+    <div id="login-view">
+        <h2>Войти в кабинет</h2>
+        <input class="auth-input" id="login-email" placeholder="Email">
+        <input class="auth-input" id="login-pass" type="password" placeholder="Пароль">
+        <button class="auth-submit" onclick="doLogin()">Войти</button>
+        <p onclick="showReg()">Нет аккаунта? Регистрация</p>
+    </div>
+    <div id="reg-view" style="display:none;">
+        <h2>Регистрация</h2>
+        <input class="auth-input" id="reg-name" placeholder="Имя">
+        <input class="auth-input" id="reg-email" placeholder="Email">
+        <input class="auth-input" id="reg-pass" type="password" placeholder="Пароль">
+        <button class="auth-submit" onclick="doReg()">Создать аккаунт</button>
+        <p onclick="showLogin()">Уже есть аккаунт? Войти</p>
+    </div>
+</div>
+
+<div class="account-body" id="account-body" style="display:none;">
+    <div class="acc-header">
+        <div class="acc-avatar" id="acc-avatar">?</div>
+        <div><h3 id="acc-name-display">Загрузка...</h3><p id="acc-email-display" style="font-size:12px; opacity:0.6;"></p></div>
+    </div>
+    <div class="acc-card">
+        <h4>Личные данные</h4>
+        <input class="auth-input" id="prof-name" placeholder="Имя">
+        <button class="cart-checkout-btn" onclick="saveProfile()" style="padding:10px; font-size:13px; width:auto;">Сохранить</button>
+    </div>
+    <div class="acc-card">
+        <h4>Мои заказы</h4>
+        <div id="acc-orders"><p style="opacity:0.4;font-size:13px;">Загрузка...</p></div>
+    </div>
+    <button class="cart-checkout-btn" style="background:#ff3b30;" onclick="doLogout()">Выйти из аккаунта</button>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ijtdynoghdrkevggwrbe.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_vxvg7KTexbn20chFrLjJ5Q_DjgY35rB';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+
+const ORDER_STATUSES = {
+    new:       { label: '🆕 Новый',           class: 'status-new',       step: 0 },
+    bought:    { label: '✅ Выкуплено',        class: 'status-bought',    step: 1 },
+    shipped:   { label: '🚚 Отправлено',       class: 'status-shipped',   step: 3 },
+    delivered: { label: '🎉 Доставлено',       class: 'status-delivered', step: 4 },
+    cancelled: { label: '❌ Отменён',          class: 'status-cancelled', step: -1 },
+    refund:    { label: '↩️ Возврат',          class: 'status-refund',    step: -1 },
+};
+const STATUS_STEPS = ['Выкуплено','Отправлено','Доставлено'];
+
+function renderOrderCard(d) {
+    const statusKey = d.status || 'new';
+    const st = ORDER_STATUSES[statusKey] || ORDER_STATUSES.new;
+    const step = st.step;
+    const isBad = statusKey === 'cancelled' || statusKey === 'refund';
+
+    let stepsHtml = '';
+    if (!isBad) {
+        stepsHtml = `<div class="order-status-steps">` +
+            STATUS_STEPS.map((s, i) => {
+                let cls = i < step ? 'done' : (i === step ? 'current' : '');
+                return `<div class="status-step ${cls}"><div class="status-step-dot"></div>${s}</div>`;
+            }).join('<div style="flex:1;height:1px;background:#e0e0e0;margin:3px 2px 0;align-self:flex-start;margin-top:7px;"></div>') +
+        `</div>`;
+    }
+
+    return `<div class="order-card">
+        <div class="order-card-header">
+            <div>
+                <div class="order-card-id">Заказ #${d.id.slice(-6).toUpperCase()}</div>
+                <div class="order-card-date">${d.date || ''}</div>
+            </div>
+            <span class="order-status-badge ${st.class}">${st.label}</span>
+        </div>
+        <div class="order-card-items">${d.items || ''}</div>
+        ${d.pvz ? `<div class="order-card-pvz">📍 ${d.pvz}</div>` : ''}
+        <div class="order-card-total">${d.total || ''}</div>
+        ${stepsHtml}
+    </div>`;
+}
+
+function showAccount() {
+    document.getElementById('login-wrap').style.display = 'none';
+    document.getElementById('account-body').style.display = 'block';
+    document.getElementById('acc-name-display').innerText = currentUser.name || '';
+    document.getElementById('acc-email-display').innerText = currentUser.email || '';
+    document.getElementById('acc-avatar').innerText = (currentUser.name || '?').charAt(0).toUpperCase();
+    document.getElementById('prof-name').value = currentUser.name || '';
+
+    supabaseClient.from('orders').select('*').eq('uid', currentUser.uid).order('created_at', { ascending: false }).then(({ data }) => {
+        document.getElementById('acc-orders').innerHTML = (data && data.length)
+            ? data.map(o => renderOrderCard(o)).join('')
+            : '<p style="opacity:0.4;font-size:13px;text-align:center;padding:20px 0;">Заказов пока нет</p>';
+    });
+}
+
+function showLoginPrompt() {
+    document.getElementById('account-body').style.display = 'none';
+    document.getElementById('login-wrap').style.display = 'block';
+}
+
+function buildCurrentUser(session) {
+    if (!session || !session.user) return null;
+    const u = session.user;
+    return { uid: u.id, name: (u.user_metadata && u.user_metadata.name) || '', email: u.email };
+}
+
+supabaseClient.auth.onAuthStateChange((event, session) => {
+    currentUser = buildCurrentUser(session);
+    currentUser ? showAccount() : showLoginPrompt();
+});
+
+function doReg() {
+    const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, p = document.getElementById('reg-pass').value;
+    supabaseClient.auth.signUp({ email: e, password: p, options: { data: { name: n } } }).then(({ data, error }) => {
+        if (error) { alert(error.message); return; }
+        if (!data.session) alert('Проверьте почту и подтвердите регистрацию, затем войдите.');
+    });
+}
+function doLogin() {
+    const e = document.getElementById('login-email').value, p = document.getElementById('login-pass').value;
+    supabaseClient.auth.signInWithPassword({ email: e, password: p }).catch(()=>alert('Ошибка входа'));
+}
+function doLogout() { supabaseClient.auth.signOut().then(()=>{ window.location.href = 'index.html'; }); }
+function showReg() { document.getElementById('login-view').style.display='none'; document.getElementById('reg-view').style.display='block'; }
+function showLogin() { document.getElementById('login-view').style.display='block'; document.getElementById('reg-view').style.display='none'; }
+function saveProfile() {
+    const n = document.getElementById('prof-name').value;
+    supabaseClient.auth.updateUser({ data: { name: n } }).then(({ error }) => {
+        if (error) { alert('Ошибка сохранения'); return; }
+        currentUser.name = n;
+        alert('Сохранено');
+    });
+}
+</script>
+</body>
+</html>
