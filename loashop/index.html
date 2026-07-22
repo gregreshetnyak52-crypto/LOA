@@ -7,6 +7,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
     <style>
         :root {
@@ -240,6 +243,36 @@
         .auth-input { width: 100%; padding: 14px; border: 1.5px solid var(--neutral-200); border-radius: var(--radius-sm); font-size: 14px; margin-bottom: 12px; font-family: var(--font-body); }
         .auth-input:focus, .order-input:focus { outline: 2px solid var(--text-on-light); outline-offset: 1px; }
         .auth-submit { width: 100%; padding: 14px; background: var(--bg-dark); color: var(--text-on-dark); border: none; border-radius: var(--radius-full); font-weight: 700; font-size: 15px; cursor: pointer; }
+
+        /* Личный кабинет */
+        .account-page { position: fixed; inset: 0; background: var(--bg-light); z-index: 4500; overflow-y: auto; display: none; }
+        .account-page.open { display: block; }
+        .account-nav { background: var(--bg-light); padding: 0 16px; height: 56px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(23,20,15,0.1); position: sticky; top: 0; color: var(--text-on-light); font-family:'Space Mono',monospace; }
+        .account-body { padding: 20px 16px 40px; max-width: 700px; margin: 0 auto; color: var(--text-on-light); }
+        .acc-header { background: var(--bg-dark); color: var(--text-on-dark); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
+        .acc-avatar { width: 56px; height: 56px; border-radius: 50%; background: rgba(235,230,220,0.12); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; flex-shrink: 0; }
+        .acc-card { background: rgba(23,20,15,0.03); border: 1px solid rgba(23,20,15,0.08); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; }
+        .order-status-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+        .status-new { background:#e8f4fd; color:#0066cc; }
+        .status-bought { background:#fff3cd; color:#856404; }
+        .status-shipped { background:#d4edff; color:#004499; }
+        .status-delivered { background:#d4edda; color:#155724; }
+        .status-cancelled { background:#fde8e8; color:#cc0000; }
+        .status-refund { background:#fde8e8; color:#cc0000; }
+        .order-card { background: var(--bg-light); border-radius:14px; padding:16px; margin-bottom:12px; border:1px solid rgba(23,20,15,0.1); }
+        .order-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+        .order-card-id { font-size:11px; color: var(--text-on-light-muted); font-weight:600; }
+        .order-card-date { font-size:11px; color: var(--text-on-light-muted); }
+        .order-card-items { font-size:13px; font-weight:600; color: var(--text-on-light); margin-bottom:6px; }
+        .order-card-pvz { font-size:12px; color: var(--text-on-light-muted); margin-bottom:8px; }
+        .order-card-total { font-size:14px; font-weight:800; }
+        .order-status-steps { display:flex; gap:4px; margin-top:12px; overflow-x:auto; }
+        .status-step { flex-shrink:0; text-align:center; font-size:9px; font-weight:700; color:#ccc; }
+        .status-step.done { color: var(--text-on-light); }
+        .status-step.current { color: var(--text-on-light); }
+        .status-step-dot { width:8px; height:8px; border-radius:50%; background:#e0e0e0; margin:0 auto 4px; }
+        .status-step.done .status-step-dot { background: var(--text-on-light); }
+        .status-step.current .status-step-dot { background: var(--text-on-light); box-shadow:0 0 0 3px rgba(23,20,15,0.15); }
 
         .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 2999; display: none; }
         .sidebar-overlay.open { display: block; }
@@ -609,6 +642,19 @@
     </div>
 </div>
 
+<div class="account-page" id="account-page">
+    <div class="account-nav"><button onclick="closeAccount()" style="background:none; border:none; font-weight:700; color:inherit; cursor:pointer;">← Назад</button><div>Loa</div><div style="width:50px;"></div></div>
+    <div class="account-body">
+        <div class="acc-header"><div class="acc-avatar" id="acc-avatar">?</div><div><h3 id="acc-name-display" style="margin:0;">Загрузка...</h3><p id="acc-email-display" style="font-size:12px; opacity:0.6; margin:4px 0 0;"></p></div></div>
+        <div class="acc-card"><h4 style="margin:0 0 12px;">Личные данные</h4>
+            <input class="auth-input" id="prof-name" placeholder="Имя">
+            <button class="cart-checkout-btn" onclick="saveProfile()" style="padding:10px; font-size:13px; width:auto;">Сохранить</button>
+        </div>
+        <div class="acc-card"><h4 style="margin:0 0 12px;">Мои заказы</h4><div id="acc-orders"><p style="opacity:0.4;font-size:13px;">Загрузка...</p></div></div>
+        <button class="cart-checkout-btn" style="background:#ff3b30;" onclick="doLogout()">Выйти из аккаунта</button>
+    </div>
+</div>
+
 
 <script>
     
@@ -616,11 +662,20 @@ const SUPABASE_URL = 'https://ijtdynoghdrkevggwrbe.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vxvg7KTexbn20chFrLjJ5Q_DjgY35rB';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (c) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
-}
+// Firebase — используется только для авторизации покупателей и хранения имени профиля.
+// Сами заказы и их статусы живут в Supabase (там же их меняет admin.html).
+const firebaseConfig = {
+  apiKey: "AIzaSyBOgb-nMQ3_QhShDOEjDxhmXRv-LSoL9OY",
+  authDomain: "loashop-32ffd.firebaseapp.com",
+  projectId: "loashop-32ffd",
+  storageBucket: "loashop-32ffd.firebasestorage.app",
+  messagingSenderId: "134736189982",
+  appId: "1:134736189982:web:8584d1bc97fe992154ac0f",
+  measurementId: "G-RMDHNKHW56"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
 const SIZE_GUIDE_HOODIE = `<button class="pp-size-guide-toggle" onclick="this.nextElementSibling.classList.toggle('open')">Таблица размеров ▾</button><div class="pp-size-guide"><table><tr><th>Размер</th><th>Рост</th></tr><tr><td>S</td><td>160–169 см</td></tr><tr><td>M</td><td>170–179 см</td></tr><tr><td>L</td><td>180–189 см</td></tr></table><table><tr><th></th><th>S</th><th>M</th><th>L</th></tr><tr><td>Длина изделия</td><td>77</td><td>79</td><td>81</td></tr><tr><td>Ширина груди</td><td>66</td><td>68</td><td>71</td></tr><tr><td>Длина рукава от плеча</td><td>46</td><td>48</td><td>50</td></tr></table></div>`;
 const SIZE_GUIDE_TEE = `<button class="pp-size-guide-toggle" onclick="this.nextElementSibling.classList.toggle('open')">Таблица размеров ▾</button><div class="pp-size-guide"><table><tr><th>Размер</th><th>Рост</th></tr><tr><td>S</td><td>160–169 см</td></tr><tr><td>M</td><td>170–179 см</td></tr><tr><td>L</td><td>180–189 см</td></tr></table><table><tr><th></th><th>S</th><th>M</th><th>L</th></tr><tr><td>Длина изделия</td><td>77</td><td>79</td><td>81</td></tr><tr><td>Ширина груди</td><td>66</td><td>68</td><td>71</td></tr><tr><td>Длина рукава от плеча</td><td>46</td><td>48</td><td>50</td></tr></table></div>`;
@@ -631,16 +686,16 @@ let PRODUCTS = {};
 
 function buildProductDesc(row) {
     let html = '';
-    if (row.subtitle) html += `<p><strong>${escapeHtml(row.subtitle)}</strong></p>`;
-    (row.intro || '').split('\n').map(s => s.trim()).filter(Boolean).forEach(line => { html += `<p>${escapeHtml(line)}</p>`; });
+    if (row.subtitle) html += `<p><strong>${row.subtitle}</strong></p>`;
+    (row.intro || '').split('\n').map(s => s.trim()).filter(Boolean).forEach(line => { html += `<p>${line}</p>`; });
     const details = (row.details || '').split('\n').map(s => s.trim()).filter(Boolean);
-    if (details.length) html += `<h4>Детали</h4><ul>${details.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul>`;
+    if (details.length) html += `<h4>Детали</h4><ul>${details.map(d => `<li>${d}</li>`).join('')}</ul>`;
     const material = (row.material || '').split('\n').map(s => s.trim()).filter(Boolean);
-    if (material.length) html += `<h4>Материал</h4><ul>${material.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`;
+    if (material.length) html += `<h4>Материал</h4><ul>${material.map(m => `<li>${m}</li>`).join('')}</ul>`;
     if (row.size_guide === 'hoodie') html += SIZE_GUIDE_HOODIE;
     else if (row.size_guide === 'tee') html += SIZE_GUIDE_TEE;
     const note = (row.production_note || '').split('\n').map(s => s.trim()).filter(Boolean);
-    if (note.length) html += `<p style="margin-top:14px;">${note.map(escapeHtml).join('<br>')}</p>`;
+    if (note.length) html += `<p style="margin-top:14px;">${note.join('<br>')}</p>`;
     return html;
 }
 
@@ -710,12 +765,12 @@ function renderCatalog() {
         return `
         <div class="product-card fade-up ${isSoldOut ? 'sold-out' : ''}" onclick="${isSoldOut ? '' : `openProduct(${p.id})`}" style="${isSoldOut ? 'pointer-events:none;' : 'cursor:pointer;'}">
             <div class="product-img-wrap">
-                <img src="${escapeHtml(p.photos[0])}" class="product-img" alt="${escapeHtml(p.name)}">
+                <img src="${p.photos[0]}" class="product-img" alt="${p.name}">
                 <button class="wish-btn ${wishlist.some(w=>w.id===p.id)?'liked':''}" aria-label="${wishlist.some(w=>w.id===p.id)?'Убрать из избранного':'Добавить в избранное'}" onclick="event.stopPropagation(); toggleWish(${p.id})">
                     <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 </button>
             </div>
-            <div class="product-name">${escapeHtml(p.name)}</div>
+            <div class="product-name">${p.name}</div>
             <div class="product-price">
                 <b>${priceWithDiscount}<span class="price-unit-sm"> р.</span></b>
                 ${p.oldPrice ? `<span class="old-price-sm">${p.oldPrice} р.</span>` : ''}
@@ -834,7 +889,7 @@ function ppAddToCart() {
 function renderPPPhotos() {
     document.getElementById('pp-main-photo').src = curP.photos[curPhotoIdx];
     document.getElementById('pp-main-photo').alt = curP.name;
-    document.getElementById('pp-thumbs').innerHTML = curP.photos.map((s,i)=>`<img class="pp-thumb ${i===curPhotoIdx?'active':''}" src="${escapeHtml(s)}" alt="${escapeHtml(curP.name)} — фото ${i+1}" onclick="curPhotoIdx=${i};renderPPPhotos()">`).join('');
+    document.getElementById('pp-thumbs').innerHTML = curP.photos.map((s,i)=>`<img class="pp-thumb ${i===curPhotoIdx?'active':''}" src="${s}" alt="${curP.name} — фото ${i+1}" onclick="curPhotoIdx=${i};renderPPPhotos()">`).join('');
 }
 
 function ppNext() { curPhotoIdx = (curPhotoIdx + 1) % curP.photos.length; renderPPPhotos(); }
@@ -888,25 +943,26 @@ function sendTG(msg) {
     }).catch(err => console.log('TG error:', err));
 }
 
+let selectedPvz = null;
+
 function openDeliveryModal() {
     if (!currentUser) return openAuth();
     if (!cart.length) return alert('Корзина пуста');
-
+    
     const nameEl = document.getElementById('order-name');
     const phoneEl = document.getElementById('order-phone');
-    const tgEl = document.getElementById('order-tg');
-    nameEl.value = currentUser.name || '';
-    phoneEl.value = currentUser.phone || '';
-    tgEl.value = '';
-
-    const items = cart.map(i => escapeHtml(i.name)).join(', ');
+    if (currentUser.name) nameEl.value = currentUser.name;
+    if (currentUser.phone) phoneEl.value = currentUser.phone;
+    
+    const items = cart.map(i => i.name).join(', ');
     const total = cart.reduce((s,i) => s+i.price, 0);
     document.getElementById('order-summary-text').innerHTML =
         '<b>Ваш заказ:</b><br>' + items + '<br><b>Итого: ' + total.toLocaleString('ru') + ' р.</b>';
-
+    
     document.getElementById('step-data').style.display = 'block';
     document.getElementById('step-pvz').style.display = 'none';
-    document.getElementById('order-address').value = '';
+    selectedPvz = null;
+    document.getElementById('selected-pvz-block').style.display = 'none';
     document.getElementById('submit-order-btn').disabled = true;
     document.getElementById('delivery-modal').style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -917,29 +973,11 @@ function closeDeliveryModal() {
     document.body.style.overflow = '';
 }
 
-function isValidFullName(value) {
-    const parts = value.trim().split(/\s+/).filter(Boolean);
-    return parts.length >= 2 && parts.every((p) => /^(?=.*[A-Za-zА-ЯЁа-яё])[A-Za-zА-ЯЁа-яё-]{2,}$/.test(p));
-}
-
-function isValidPhone(value) {
-    const digits = value.replace(/\D/g, '');
-    return /^[78]\d{10}$/.test(digits);
-}
-
 function goToDeliveryStep() {
     const name = document.getElementById('order-name').value.trim();
     const phone = document.getElementById('order-phone').value.trim();
-    if (!isValidFullName(name)) {
-        document.getElementById('order-name').style.border='1.5px solid var(--danger)';
-        alert('Укажите имя и фамилию полностью');
-        return;
-    }
-    if (!isValidPhone(phone)) {
-        document.getElementById('order-phone').style.border='1.5px solid var(--danger)';
-        alert('Проверьте номер телефона — укажите в формате +7...');
-        return;
-    }
+    if (!name) { document.getElementById('order-name').style.border='1.5px solid var(--danger)'; return; }
+    if (!phone) { document.getElementById('order-phone').style.border='1.5px solid var(--danger)'; return; }
     document.getElementById('order-name').style.border='1.5px solid #e5e5e5';
     document.getElementById('order-phone').style.border='1.5px solid #e5e5e5';
     document.getElementById('step-data').style.display = 'none';
@@ -951,36 +989,29 @@ function backToDataStep() {
     document.getElementById('step-pvz').style.display = 'none';
 }
 
+function selectPvz(address, hours) {
+    selectedPvz = {addr: address, hours: hours};
+    document.getElementById('selected-pvz-text').textContent = address;
+    document.getElementById('selected-pvz-block').style.display = 'block';
+    document.getElementById('submit-order-btn').disabled = false;
+}
+
 function submitOrder() {
     const name = document.getElementById('order-name').value.trim();
     const phone = document.getElementById('order-phone').value.trim();
     const tg = document.getElementById('order-tg').value.trim();
-    if (!isValidFullName(name) || !isValidPhone(phone)) return alert('Проверьте имя, фамилию и телефон');
+    if (!name || !phone) return alert('Заполните имя и телефон');
 
-    const pvzAddress = document.getElementById('order-address').value.trim();
-    if (!pvzAddress) {
-        alert('Укажите адрес доставки');
+    const selectedPvz = window.selectedPvz;
+    if (!selectedPvz) {
+        alert('Выберите пункт выдачи');
         return;
     }
-
-    // Свежая проверка "не распродано" прямо перед оформлением — товар мог уйти в
-    // sold_out, пока лежал в корзине (localStorage переживает перезагрузки страницы).
-    const soldOutItem = cart.find(i => PRODUCTS[i.id] && PRODUCTS[i.id].soldOut);
-    if (soldOutItem) {
-        alert(`«${soldOutItem.name}» больше не доступен — удалите его из корзины`);
-        return;
-    }
-
-    const submitBtn = document.getElementById('submit-order-btn');
-    submitBtn.disabled = true;
 
     const items = cart.map(i => i.name).join(', ');
     const total = cart.reduce((s,i) => s+i.price, 0);
-    // Сервер (create-payment) пересчитывает и берёт за основу реальную сумму по этим
-    // id из таблицы products — total выше нужен только для читаемости заказа в
-    // админке/Telegram, сумму к оплате клиент больше не диктует.
-    const itemsJson = cart.map(i => ({ id: i.id }));
     const date = new Date().toLocaleString('ru');
+    const pvzAddress = selectedPvz.address || selectedPvz.addr;
 
     // Один заказ на оба сценария (гость/залогинен) — иначе серверу (вебхуку оплаты) нечего
     // будет обновлять для гостей. Статус и оплата всегда стартуют в "ожидании" — клиент не
@@ -994,13 +1025,14 @@ function submitOrder() {
     const orderId = crypto.randomUUID();
     const orderData = {
         id: orderId,
-        uid: currentUser ? currentUser.uid : null,
+        uid: null, // важно: uid обязан быть пустым — по нему create-payment сверяет
+                   // "гостевой" статус заказа, а у Firebase-покупателей нет Supabase-сессии
+        firebase_uid: currentUser ? currentUser.uid : null,
         name: name,
         phone: phone,
         tg: tg,
         items: items,
         total: total + ' р.',
-        items_json: itemsJson,
         pvz: pvzAddress,
         date: date,
         status: 'new',
@@ -1011,9 +1043,9 @@ function submitOrder() {
         if (error) {
             alert('Не удалось оформить заказ, попробуйте ещё раз');
             console.log('submitOrder error:', error);
-            submitBtn.disabled = false;
             return;
         }
+
         const shortId = orderId.slice(-6).toUpperCase();
         sendTG(
             `🛍 <b>НОВЫЙ ЗАКАЗ LOA</b> <code>#${shortId}</code>${currentUser ? '' : ' (гость)'}\n\n` +
@@ -1022,7 +1054,8 @@ function submitOrder() {
             (tg ? `✈️ <b>Telegram:</b> ${tg}\n` : '') +
             `\n📦 <b>Товары:</b>\n${cart.map(i => '• ' + i.name + ' — ' + i.price.toLocaleString('ru') + ' р.').join('\n')}\n` +
             `💰 <b>Итого:</b> ${total.toLocaleString('ru')} р.\n\n` +
-            `🚚 <b>Адрес:</b> ${pvzAddress}\n` +
+            `🚚 <b>ПВЗ:</b> ${pvzAddress}\n` +
+            (selectedPvz.hours ? `🕐 <b>Часы работы:</b> ${selectedPvz.hours}\n` : '') +
             `📅 <b>Дата:</b> ${date}\n\n` +
             `━━━━━━━━━━━━━━━━━━\n` +
             `Заказ #${shortId}`
@@ -1031,17 +1064,11 @@ function submitOrder() {
         closeDeliveryModal();
 
         // Платёж создаёт сервер (там же, где секретный ключ ЮKassa — в браузере его быть
-        // не должно), и отдаёт ссылку на страницу оплаты. Для залогиненного покупателя
-        // прикладываем его access token — create-payment сверяет его с order.uid, чтобы
-        // чужой заказ нельзя было оплатить, зная только его id.
-        supabaseClient.auth.getSession().then(({ data: { session } }) => {
-            const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY };
-            if (session) headers.Authorization = `Bearer ${session.access_token}`;
-            return fetch(SUPABASE_URL + '/functions/v1/create-payment', {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ order_id: orderId })
-            });
+        // не должно), и отдаёт ссылку на страницу оплаты.
+        fetch(SUPABASE_URL + '/functions/v1/create-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+            body: JSON.stringify({ order_id: orderId })
         })
             .then(r => r.json())
             .then(({ confirmation_url, error: payError }) => {
@@ -1059,7 +1086,6 @@ function submitOrder() {
     }).catch(err => {
         alert('Не удалось оформить заказ, попробуйте ещё раз');
         console.log('submitOrder error:', err);
-        submitBtn.disabled = false;
     });
 }
 
@@ -1103,10 +1129,6 @@ async function checkSuccess() {
 }
 
 function onPaymentConfirmed(order) {
-    // Убираем ?paid=true&order=... из адреса сразу — иначе повторный auth-событие
-    // (обновление токена, повторный вход, просто reload) снова найдёт "paid" и
-    // повторно отправит уведомление/откроет модалку.
-    window.history.replaceState({}, '', window.location.pathname);
     sendTelegramNotification(
         `🛍 <b>ЗАКАЗ ОПЛАЧЕН</b>\n\n` +
         `👤 Клиент: ${order.name || ''}\n` +
@@ -1120,45 +1142,39 @@ function onPaymentConfirmed(order) {
 }
 function closeSuccessModal() { window.location.href = window.location.pathname; }
 
-// AUTH — покупатели логинятся через Supabase Auth, имя хранится в user_metadata
-// (отдельная таблица профилей не нужна для одного поля).
-function buildCurrentUser(session) {
-    if (!session || !session.user) return null;
-    const u = session.user;
-    return { uid: u.id, name: (u.user_metadata && u.user_metadata.name) || '', email: u.email, phone: (u.user_metadata && u.user_metadata.phone) || '' };
-}
-
-supabaseClient.auth.onAuthStateChange((event, session) => {
-    currentUser = buildCurrentUser(session);
-    renderNavProfile();
-    checkSuccess();
+// AUTH — покупатели логинятся через Firebase Auth, профиль (имя) хранится в Firestore.
+// Заказы при этом лежат в Supabase (см. openAccount ниже) — их статус меняется в admin.html.
+auth.onAuthStateChanged(user => {
+    if (user) {
+        db.collection('users').doc(user.uid).get().then(doc => {
+            currentUser = { uid: user.uid, ...doc.data() };
+            renderNavProfile();
+            checkSuccess();
+        });
+    } else {
+        currentUser = null;
+        renderNavProfile();
+    }
 });
 
 function doReg() {
     const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, p = document.getElementById('reg-pass').value;
-    if (p.length < 8) { alert('Пароль должен быть не короче 8 символов'); return; }
-    supabaseClient.auth.signUp({ email: e, password: p, options: { data: { name: n } } }).then(({ data, error }) => {
-        // Один и тот же ответ для новой и уже занятой почты — иначе форма регистрации
-        // становится оракулом "какие email есть в базе".
-        if (error) { alert('Не удалось зарегистрироваться, попробуйте ещё раз'); return; }
-        if (!data.session) alert('Проверьте почту и подтвердите регистрацию, затем войдите.');
-        closeAuth();
-    });
+    auth.createUserWithEmailAndPassword(e, p)
+        .then(r => db.collection('users').doc(r.user.uid).set({ name: n, email: e }))
+        .then(() => closeAuth())
+        .catch(err => alert(err.message));
 }
 function doLogin() {
     const e = document.getElementById('login-email').value, p = document.getElementById('login-pass').value;
-    supabaseClient.auth.signInWithPassword({ email: e, password: p }).then(({ error }) => {
-        if (error) { alert('Ошибка входа'); return; }
-        closeAuth();
-    });
+    auth.signInWithEmailAndPassword(e, p).then(() => closeAuth()).catch(() => alert('Ошибка входа'));
 }
-function doLogout() { supabaseClient.auth.signOut().then(()=>location.reload()); }
+function doLogout() { auth.signOut().then(() => location.reload()); }
 function renderNavProfile() {
     const dd = document.getElementById('profile-dropdown');
-    if(currentUser) {
-        dd.innerHTML = `<div style="padding:15px; border-bottom:1px solid #333;">${escapeHtml(currentUser.name)}</div><a href="cabinet.html" style="display:block; padding:15px; cursor:pointer;">👤 Кабинет</a><div style="padding:15px; cursor:pointer; color:red;" onclick="doLogout()">🚪 Выход</div>`;
+    if (currentUser) {
+        dd.innerHTML = `<div style="padding:15px; border-bottom:1px solid #333;">${currentUser.name || ''}</div><div style="padding:15px; cursor:pointer;" onclick="openAccount()">👤 Кабинет</div><div style="padding:15px; cursor:pointer; color:red;" onclick="doLogout()">🚪 Выход</div>`;
     } else {
-       dd.innerHTML = `<div style="padding:15px; cursor:pointer;" onclick="openAuth()">👤 Войти</div><div style="padding:15px; cursor:pointer;" onclick="openAuth(); showReg()">✨ Регистрация</div>`;
+        dd.innerHTML = `<div style="padding:15px; cursor:pointer;" onclick="openAuth()">👤 Войти</div><div style="padding:15px; cursor:pointer;" onclick="openAuth(); showReg()">✨ Регистрация</div>`;
     }
 }
 function toggleProfileDropdown() { const dd = document.getElementById('profile-dropdown'); dd.style.display = dd.style.display === 'block' ? 'none' : 'block'; }
@@ -1166,6 +1182,74 @@ function openAuth() { document.getElementById('auth-overlay').classList.add('ope
 function closeAuth() { document.getElementById('auth-overlay').classList.remove('open'); }
 function showReg() { document.getElementById('auth-login-view').style.display='none'; document.getElementById('auth-reg-view').style.display='block'; }
 function showLogin() { document.getElementById('auth-login-view').style.display='block'; document.getElementById('auth-reg-view').style.display='none'; }
+
+// ЛИЧНЫЙ КАБИНЕТ (overlay, как в старой версии — без отдельной страницы cabinet.html)
+// Вход через Firebase, но сами заказы живут в Supabase (там же, где admin.html меняет статусы).
+// Обычный select с фильтром по uid тут не пройдёт RLS (Supabase не знает про Firebase-сессию),
+// поэтому заказы читаем через RPC-функцию get_orders_by_uid — она возвращает только заказы
+// конкретного переданного uid, а не всю таблицу. SQL для её создания — см. в отдельном файле.
+function openAccount() {
+    document.getElementById('acc-name-display').innerText = currentUser.name || '';
+    document.getElementById('acc-email-display').innerText = currentUser.email || '';
+    document.getElementById('prof-name').value = currentUser.name || '';
+    document.getElementById('account-page').classList.add('open');
+    document.getElementById('acc-orders').innerHTML = '<p style="opacity:0.4;font-size:13px;">Загрузка...</p>';
+
+    supabaseClient.rpc('get_orders_by_uid', { p_uid: currentUser.uid }).then(({ data, error }) => {
+        if (error) {
+            console.log('get_orders_by_uid error:', error);
+            document.getElementById('acc-orders').innerHTML = '<p style="opacity:0.4;font-size:13px;text-align:center;padding:20px 0;">Не удалось загрузить заказы</p>';
+            return;
+        }
+        document.getElementById('acc-orders').innerHTML = (data && data.length)
+            ? data.map(o => renderOrderCard(o)).join('')
+            : '<p style="opacity:0.4;font-size:13px;text-align:center;padding:20px 0;">Заказов пока нет</p>';
+    });
+}
+function closeAccount() { document.getElementById('account-page').classList.remove('open'); }
+function saveProfile() { const n = document.getElementById('prof-name').value; db.collection('users').doc(currentUser.uid).update({name:n}).then(()=>{ currentUser.name = n; alert('Сохранено'); }); }
+
+const ORDER_STATUSES = {
+    new:       { label: '🆕 Новый',           class: 'status-new',       step: 0 },
+    bought:    { label: '✅ Выкуплено',        class: 'status-bought',    step: 1 },
+    shipped:   { label: '🚚 Отправлено',       class: 'status-shipped',   step: 3 },
+    delivered: { label: '🎉 Доставлено',       class: 'status-delivered', step: 4 },
+    cancelled: { label: '❌ Отменён',          class: 'status-cancelled', step: -1 },
+    refund:    { label: '↩️ Возврат',          class: 'status-refund',    step: -1 },
+};
+const STATUS_STEPS = ['Выкуплено','Отправлено','Доставлено'];
+
+// Заказ теперь — обычная строка из Supabase (как в admin.html), а не Firestore-документ
+function renderOrderCard(o) {
+    const statusKey = o.status || 'new';
+    const st = ORDER_STATUSES[statusKey] || ORDER_STATUSES.new;
+    const step = st.step;
+    const isBad = statusKey === 'cancelled' || statusKey === 'refund';
+
+    let stepsHtml = '';
+    if (!isBad) {
+        stepsHtml = `<div class="order-status-steps">` +
+            STATUS_STEPS.map((s, i) => {
+                let cls = i < step ? 'done' : (i === step ? 'current' : '');
+                return `<div class="status-step ${cls}"><div class="status-step-dot"></div>${s}</div>`;
+            }).join('<div style="flex:1;height:1px;background:#e0e0e0;margin:3px 2px 0;align-self:flex-start;margin-top:7px;"></div>') +
+        `</div>`;
+    }
+
+    return `<div class="order-card">
+        <div class="order-card-header">
+            <div>
+                <div class="order-card-id">Заказ #${String(o.id).slice(-6).toUpperCase()}</div>
+                <div class="order-card-date">${o.date || ''}</div>
+            </div>
+            <span class="order-status-badge ${st.class}">${st.label}</span>
+        </div>
+        <div class="order-card-items">${o.items || ''}</div>
+        ${o.pvz ? `<div class="order-card-pvz">📍 ${o.pvz}</div>` : ''}
+        <div class="order-card-total">${o.total || ''}</div>
+        ${stepsHtml}
+    </div>`;
+}
 function openSideMenu() {
     document.getElementById('side-menu').classList.add('open');
     document.getElementById('side-menu-overlay').classList.add('open');
@@ -1324,35 +1408,48 @@ loadProductsFromSupabase();
     <div id="step-data" style="padding:24px;">
       <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#aaa; margin-bottom:16px;">Шаг 1 из 2 — Ваши данные</div>
       
-      <input id="order-name" class="order-input" type="text" maxlength="100" placeholder="Имя и фамилия *" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
-      <input id="order-phone" class="order-input" type="tel" maxlength="30" placeholder="Телефон * (+7...)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
-      <input id="order-tg" class="order-input" type="text" maxlength="50" placeholder="Telegram @username (необязательно)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
+      <input id="order-name" class="order-input" type="text" placeholder="Имя и фамилия *" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
+      <input id="order-phone" class="order-input" type="tel" placeholder="Телефон * (+7...)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
+      <input id="order-tg" class="order-input" type="text" placeholder="Telegram @username (необязательно)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
       
       <div style="background:#f9f9f9; border-radius:10px; padding:14px 16px; margin-bottom:16px; font-size:12px; line-height:1.6; color:#555;">
         <div id="order-summary-text" style=""></div>
       </div>
 
-      <button onclick="goToDeliveryStep()" style="width:100%;background:#000;color:#fff;border:none;border-radius:40px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Unbounded',sans-serif;">Далее — адрес доставки →</button>
+      <button onclick="goToDeliveryStep()" style="width:100%;background:#000;color:#fff;border:none;border-radius:40px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Unbounded',sans-serif;">Далее — выбрать ПВЗ →</button>
     </div>
 
-    <!-- Шаг 2: Адрес доставки (свободный ввод — базы ПВЗ нет) -->
+    <!-- Шаг 2: ПВЗ (упрощенный, без карты, только поиск из вашего pvz.json) -->
     <div id="step-pvz" style="display:none; padding:0;">
       <div style="padding:16px 24px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:12px;">
         <button onclick="backToDataStep()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#000;">←</button>
         <div>
           <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#aaa;">Шаг 2 из 2</div>
-          <div style="font-size:14px; font-weight:700;">Адрес доставки</div>
+          <div style="font-size:14px; font-weight:700;">Выберите пункт выдачи</div>
         </div>
       </div>
 
-      <div style="padding:16px 24px;">
-        <textarea id="order-address" class="order-input" maxlength="500" placeholder="Город и адрес или удобный пункт выдачи *" style="width:100%;min-height:90px;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;box-sizing:border-box;resize:vertical;"></textarea>
-        <div style="font-size:11px;color:#aaa;margin-top:8px;">Мы свяжемся с вами, чтобы согласовать точный способ и адрес доставки.</div>
+      <!-- Поиск города + список ПВЗ -->
+      <div style="padding:14px 16px;">
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <input id="pvz-city-search" class="order-input" type="text" placeholder="Введите город..." style="flex:1;padding:11px 14px;border:1.5px solid #e5e5e5;border-radius:10px;font-size:14px;font-family:'Unbounded',sans-serif;">
+          <button id="pvz-search-btn" style="background:#000;color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Unbounded',sans-serif;">Найти</button>
+        </div>
+        <div id="pvz-status" style="font-size:12px; color:#888; margin-bottom:12px; min-height:20px;">Введите город для поиска</div>
+        
+        <!-- Список ПВЗ будет вставлен сюда -->
+        <div id="pvz-list" style="max-height:320px; overflow-y:auto; border-top:1px solid #f0f0f0;"></div>
+      </div>
+
+      <!-- Выбранный ПВЗ -->
+      <div id="selected-pvz-block" style="display:none; padding:14px 16px; background:#f0fff4; border-top:1px solid #d4edda;">
+        <div style="font-size:12px; color:#28a745; font-weight:700; margin-bottom:4px;">✓ ПВЗ выбран</div>
+        <div id="selected-pvz-text" style="font-size:13px; font-weight:600;"></div>
       </div>
 
       <div style="padding:14px 16px; border-top:1px solid #f0f0f0;">
         <button id="submit-order-btn" onclick="submitOrder()" style="width:100%;background:#000;color:#fff;border:none;border-radius:40px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Unbounded',sans-serif;" disabled>Оплатить онлайн →</button>
-        <div style="text-align:center;font-size:11px;color:#aaa;margin-top:10px;">Укажите адрес для продолжения</div>
+        <div style="text-align:center;font-size:11px;color:#aaa;margin-top:10px;">Выберите ПВЗ из списка для продолжения</div>
       </div>
     </div>
 
@@ -1360,20 +1457,141 @@ loadProductsFromSupabase();
 </div>
 
 <script>
+// ============================================================
+// ПВЗ ПОИСК — РАБОЧАЯ ВЕРСИЯ
+// ============================================================
 (function() {
-    function initAddressStep() {
-        const addressInput = document.getElementById('order-address');
+    function initPvzSearch() {
+        console.log('initPvzSearch запущен');
+        
+        const cityInput = document.getElementById('pvz-city-search');
+        const searchBtn = document.getElementById('pvz-search-btn');
+        const statusDiv = document.getElementById('pvz-status');
+        const listDiv = document.getElementById('pvz-list');
+        const selectedBlock = document.getElementById('selected-pvz-block');
+        const selectedText = document.getElementById('selected-pvz-text');
         const submitBtn = document.getElementById('submit-order-btn');
-        if (!addressInput || !submitBtn) return;
-        addressInput.addEventListener('input', () => {
-            submitBtn.disabled = !addressInput.value.trim();
-        });
-    }
 
+        if (!cityInput || !searchBtn) {
+            console.error('Не найдены элементы:', {cityInput, searchBtn});
+            return;
+        }
+
+        let selectedPvzObj = null;
+        let pvzData = null;
+
+        async function loadData() {
+            try {
+                statusDiv.innerHTML = '📥 Загрузка базы ПВЗ...';
+                const response = await fetch('/public/pvz.json');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                pvzData = await response.json();
+                statusDiv.innerHTML = '✅ База загружена. Введите город для поиска.';
+                console.log('PVZ data loaded, городов:', Object.keys(pvzData).length);
+                return true;
+            } catch (err) {
+                console.error('Ошибка загрузки:', err);
+                statusDiv.innerHTML = '❌ Не удалось загрузить базу ПВЗ. Проверьте соединение.';
+                return false;
+            }
+        }
+
+        async function searchPvz(cityName) {
+            console.log('searchPvz вызван, город:', cityName);
+            
+            if (!cityName.trim()) {
+                statusDiv.innerHTML = '⚠ Введите название города';
+                listDiv.innerHTML = '';
+                return;
+            }
+
+            if (!pvzData) {
+                const loaded = await loadData();
+                if (!loaded) return;
+            }
+
+            statusDiv.innerHTML = '🔍 Поиск...';
+            listDiv.innerHTML = '';
+            
+            const foundCityKey = Object.keys(pvzData).find(key => 
+                key.toLowerCase() === cityName.trim().toLowerCase()
+            );
+            
+            if (!foundCityKey) {
+                statusDiv.innerHTML = `❌ Пункты выдачи для «${cityName}» не найдены.`;
+                listDiv.innerHTML = '';
+                return;
+            }
+            
+            const pvzArray = pvzData[foundCityKey];
+            if (!pvzArray || pvzArray.length === 0) {
+                statusDiv.innerHTML = `❌ Нет адресов для «${cityName}».`;
+                listDiv.innerHTML = '';
+                return;
+            }
+            
+            statusDiv.innerHTML = `✅ Найдено ${pvzArray.length} пунктов выдачи в городе «${foundCityKey}»:`;
+            
+            listDiv.innerHTML = '';
+            pvzArray.slice(0, 20).forEach((pvz) => {
+                const item = document.createElement('div');
+                item.style.cssText = 'padding:12px 0; border-bottom:1px solid #f0f0f0; cursor:pointer; transition:background 0.15s;';
+                item.onmouseover = () => item.style.background = '#f9f9f9';
+                item.onmouseout = () => item.style.background = '';
+                item.innerHTML = `
+                    <div style="font-size:13px; font-weight:700; color:#000;">📍 ${pvz.address || 'Адрес не указан'}</div>
+                    ${pvz.hours ? `<div style="font-size:12px; color:#555; margin-top:4px;">🕐 ${pvz.hours}</div>` : ''}
+                    ${pvz.comment ? `<div style="font-size:11px; color:#888; margin-top:2px;">${pvz.comment}</div>` : ''}
+                `;
+                item.onclick = () => {
+                    document.querySelectorAll('#pvz-list > div').forEach(el => el.style.background = '');
+                    item.style.background = '#e6f0ff';
+                    selectedPvzObj = pvz;
+                    window.selectedPvz = selectedPvzObj;   // 
+                    selectedText.textContent = pvz.address;
+                    selectedBlock.style.display = 'block';
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                    }
+                };
+                listDiv.appendChild(item);
+            });
+            
+            if (pvzArray.length > 20) {
+                const more = document.createElement('div');
+                more.style.cssText = 'padding:12px; text-align:center; color:#888; font-size:12px;';
+                more.innerHTML = `И еще ${pvzArray.length - 20} адресов...`;
+                listDiv.appendChild(more);
+            }
+        }
+        
+        searchBtn.addEventListener('click', () => searchPvz(cityInput.value));
+        cityInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchPvz(cityInput.value);
+        });
+        
+        window.getSelectedPvz = () => selectedPvzObj;
+        
+        if (window.submitOrder) {
+            const originalSubmitOrder = window.submitOrder;
+            window.submitOrder = function() {
+                const selected = window.getSelectedPvz();
+                if (!selected) {
+                    alert('Выберите пункт выдачи');
+                    return;
+                }
+                window.selectedPvz = selected;
+                return originalSubmitOrder();
+            };
+        }
+        
+        loadData();
+    }
+    
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initAddressStep);
+        document.addEventListener('DOMContentLoaded', initPvzSearch);
     } else {
-        initAddressStep();
+        initPvzSearch();
     }
 })();
 </script>
