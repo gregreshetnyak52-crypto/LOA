@@ -909,11 +909,29 @@ function closeDeliveryModal() {
     document.body.style.overflow = '';
 }
 
+function isValidFullName(value) {
+    const parts = value.trim().split(/\s+/).filter(Boolean);
+    return parts.length >= 2 && parts.every((p) => /^[A-Za-zА-ЯЁа-яё-]{2,}$/.test(p));
+}
+
+function isValidPhone(value) {
+    const digits = value.replace(/\D/g, '');
+    return /^[78]\d{10}$/.test(digits);
+}
+
 function goToDeliveryStep() {
     const name = document.getElementById('order-name').value.trim();
     const phone = document.getElementById('order-phone').value.trim();
-    if (!name) { document.getElementById('order-name').style.border='1.5px solid var(--danger)'; return; }
-    if (!phone) { document.getElementById('order-phone').style.border='1.5px solid var(--danger)'; return; }
+    if (!isValidFullName(name)) {
+        document.getElementById('order-name').style.border='1.5px solid var(--danger)';
+        alert('Укажите имя и фамилию полностью');
+        return;
+    }
+    if (!isValidPhone(phone)) {
+        document.getElementById('order-phone').style.border='1.5px solid var(--danger)';
+        alert('Проверьте номер телефона — укажите в формате +7...');
+        return;
+    }
     document.getElementById('order-name').style.border='1.5px solid #e5e5e5';
     document.getElementById('order-phone').style.border='1.5px solid #e5e5e5';
     document.getElementById('step-data').style.display = 'none';
@@ -929,7 +947,7 @@ function submitOrder() {
     const name = document.getElementById('order-name').value.trim();
     const phone = document.getElementById('order-phone').value.trim();
     const tg = document.getElementById('order-tg').value.trim();
-    if (!name || !phone) return alert('Заполните имя и телефон');
+    if (!isValidFullName(name) || !isValidPhone(phone)) return alert('Проверьте имя, фамилию и телефон');
 
     const pvzAddress = document.getElementById('order-address').value.trim();
     if (!pvzAddress) {
