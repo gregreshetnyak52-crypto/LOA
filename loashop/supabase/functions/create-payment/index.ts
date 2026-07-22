@@ -1,9 +1,11 @@
 // Создаёт платёж в ЮKassa для уже существующего заказа и возвращает ссылку на оплату
 // (confirmation_url), куда браузер перенаправляет покупателя.
 //
-// ВАЖНО: сумма берётся из БАЗЫ (по order_id), а не от клиента — иначе кто угодно мог бы
-// прислать любую сумму. Секретный ключ ЮKassa здесь виден только серверу (эта функция),
-// в браузер он никогда не попадает.
+// ВАЖНО: сумма пересчитывается здесь из актуальных цен в таблице products по
+// order.items_json — заказ.total, который прислал браузер, для суммы к оплате не
+// используется вовсе (только для отображения в админке/Telegram). Иначе кто угодно
+// мог бы подделать цену в devtools. Секретный ключ ЮKassa виден только серверу (эта
+// функция), в браузер он никогда не попадает.
 //
 // Деплой (из папки Сайты/loashop):
 //   supabase functions deploy create-payment --no-verify-jwt
@@ -24,6 +26,8 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const ykAuth = () => btoa(`${SHOP_ID}:${SECRET_KEY}`);
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -58,19 +62,77 @@ Deno.serve(async (req) => {
   if (fetchErr || !order) {
     return new Response(JSON.stringify({ error: 'Order not found' }), { status: 404, headers: corsHeaders });
   }
+
+  // Гостевой заказ (uid IS NULL) оплатить может любой, у кого есть его id — так и
+  // задумано (см. get_guest_order_status). Но если заказ привязан к аккаунту, платить
+  // за него должен именно этот аккаунт, а не первый, кто узнал/подобрал order_id.
+  if (order.uid) {
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const { data: { user }, error: authErr } = token ? await supabase.auth.getUser(token) : { data: { user: null }, error: null };
+    if (authErr || !user || user.id !== order.uid) {
+      return new Response(JSON.stringify({ error: 'Not your order' }), { status: 403, headers: corsHeaders });
+    }
+  }
+
   if (order.status !== 'new' || order.payment_status !== 'awaiting') {
     return new Response(JSON.stringify({ error: 'Order is not payable' }), { status: 400, headers: corsHeaders });
   }
 
-  const amountValue = parseFloat(String(order.total).replace(/[^\d.]/g, '')).toFixed(2);
-  const shortId = orderId.slice(-6).toUpperCase();
+  // Идемпотентность: если платёж для этого заказа уже был создан (двойной клик,
+  // повторный вызов) и всё ещё ожидает оплаты — отдаём ту же ссылку вместо того,
+  // чтобы плодить новые платежи в ЮKassa на один и тот же заказ.
+  if (order.payment_operation_id) {
+    const existing = await fetch(`https://api.yookassa.ru/v3/payments/${order.payment_operation_id}`, {
+      headers: { Authorization: `Basic ${ykAuth()}` },
+    });
+    if (existing.ok) {
+      const existingPayment = await existing.json();
+      if (existingPayment.status === 'pending' || existingPayment.status === 'waiting_for_capture') {
+        return new Response(
+          JSON.stringify({ confirmation_url: existingPayment.confirmation?.confirmation_url }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+  }
 
-  const auth = btoa(`${SHOP_ID}:${SECRET_KEY}`);
+  // Сумма — только из актуальных цен в products по items_json, а не из order.total
+  // (тот пишет браузер и ему верить нельзя). Скидка берётся из settings так же, как
+  // её видит покупатель на витрине.
+  const items: Array<{ id: number }> = Array.isArray(order.items_json) ? order.items_json : [];
+  let amountValue: string;
+
+  if (items.length) {
+    const ids = [...new Set(items.map((i) => i.id))];
+    const [{ data: products }, { data: settings }] = await Promise.all([
+      supabase.from('products').select('id, price_rub').in('id', ids),
+      supabase.from('settings').select('global_discount').eq('id', 1).maybeSingle(),
+    ]);
+    const discount = settings?.global_discount || 0;
+    const priceById = new Map((products || []).map((p: any) => [p.id, p.price_rub]));
+
+    let total = 0;
+    for (const item of items) {
+      const price = priceById.get(item.id);
+      if (typeof price !== 'number') {
+        return new Response(JSON.stringify({ error: 'Unknown product in order' }), { status: 400, headers: corsHeaders });
+      }
+      total += discount ? Math.round(price - (price * discount) / 100) : price;
+    }
+    amountValue = total.toFixed(2);
+  } else {
+    // Заказы без items_json (оформлены до этого изменения) — структурных данных для
+    // пересчёта нет, используем то, что уже записано.
+    amountValue = parseFloat(String(order.total).replace(/[^\d.]/g, '')).toFixed(2);
+  }
+
+  const shortId = orderId.slice(-6).toUpperCase();
 
   const ykResponse = await fetch('https://api.yookassa.ru/v3/payments', {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${auth}`,
+      Authorization: `Basic ${ykAuth()}`,
       'Idempotence-Key': orderId,
       'Content-Type': 'application/json',
     },
@@ -94,7 +156,10 @@ Deno.serve(async (req) => {
 
   const payment = await ykResponse.json();
 
-  await supabase.from('orders').update({ payment_operation_id: payment.id }).eq('id', orderId);
+  const { error: updateErr } = await supabase.from('orders').update({ payment_operation_id: payment.id }).eq('id', orderId);
+  if (updateErr) {
+    console.error('Не удалось сохранить payment_operation_id', { orderId, updateErr });
+  }
 
   return new Response(
     JSON.stringify({ confirmation_url: payment.confirmation?.confirmation_url }),

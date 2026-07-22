@@ -101,6 +101,12 @@ const SUPABASE_URL = 'https://ijtdynoghdrkevggwrbe.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vxvg7KTexbn20chFrLjJ5Q_DjgY35rB';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
 let currentUser = null;
 
 const ORDER_STATUSES = {
@@ -133,13 +139,13 @@ function renderOrderCard(d) {
         <div class="order-card-header">
             <div>
                 <div class="order-card-id">Заказ #${d.id.slice(-6).toUpperCase()}</div>
-                <div class="order-card-date">${d.date || ''}</div>
+                <div class="order-card-date">${escapeHtml(d.date)}</div>
             </div>
             <span class="order-status-badge ${st.class}">${st.label}</span>
         </div>
-        <div class="order-card-items">${d.items || ''}</div>
-        ${d.pvz ? `<div class="order-card-pvz">📍 ${d.pvz}</div>` : ''}
-        <div class="order-card-total">${d.total || ''}</div>
+        <div class="order-card-items">${escapeHtml(d.items)}</div>
+        ${d.pvz ? `<div class="order-card-pvz">📍 ${escapeHtml(d.pvz)}</div>` : ''}
+        <div class="order-card-total">${escapeHtml(d.total)}</div>
         ${stepsHtml}
     </div>`;
 }

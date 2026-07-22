@@ -616,6 +616,12 @@ const SUPABASE_URL = 'https://ijtdynoghdrkevggwrbe.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vxvg7KTexbn20chFrLjJ5Q_DjgY35rB';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
 const SIZE_GUIDE_HOODIE = `<button class="pp-size-guide-toggle" onclick="this.nextElementSibling.classList.toggle('open')">Таблица размеров ▾</button><div class="pp-size-guide"><table><tr><th>Размер</th><th>Рост</th></tr><tr><td>S</td><td>160–169 см</td></tr><tr><td>M</td><td>170–179 см</td></tr><tr><td>L</td><td>180–189 см</td></tr></table><table><tr><th></th><th>S</th><th>M</th><th>L</th></tr><tr><td>Длина изделия</td><td>77</td><td>79</td><td>81</td></tr><tr><td>Ширина груди</td><td>66</td><td>68</td><td>71</td></tr><tr><td>Длина рукава от плеча</td><td>46</td><td>48</td><td>50</td></tr></table></div>`;
 const SIZE_GUIDE_TEE = `<button class="pp-size-guide-toggle" onclick="this.nextElementSibling.classList.toggle('open')">Таблица размеров ▾</button><div class="pp-size-guide"><table><tr><th>Размер</th><th>Рост</th></tr><tr><td>S</td><td>160–169 см</td></tr><tr><td>M</td><td>170–179 см</td></tr><tr><td>L</td><td>180–189 см</td></tr></table><table><tr><th></th><th>S</th><th>M</th><th>L</th></tr><tr><td>Длина изделия</td><td>77</td><td>79</td><td>81</td></tr><tr><td>Ширина груди</td><td>66</td><td>68</td><td>71</td></tr><tr><td>Длина рукава от плеча</td><td>46</td><td>48</td><td>50</td></tr></table></div>`;
 
@@ -625,16 +631,16 @@ let PRODUCTS = {};
 
 function buildProductDesc(row) {
     let html = '';
-    if (row.subtitle) html += `<p><strong>${row.subtitle}</strong></p>`;
-    (row.intro || '').split('\n').map(s => s.trim()).filter(Boolean).forEach(line => { html += `<p>${line}</p>`; });
+    if (row.subtitle) html += `<p><strong>${escapeHtml(row.subtitle)}</strong></p>`;
+    (row.intro || '').split('\n').map(s => s.trim()).filter(Boolean).forEach(line => { html += `<p>${escapeHtml(line)}</p>`; });
     const details = (row.details || '').split('\n').map(s => s.trim()).filter(Boolean);
-    if (details.length) html += `<h4>Детали</h4><ul>${details.map(d => `<li>${d}</li>`).join('')}</ul>`;
+    if (details.length) html += `<h4>Детали</h4><ul>${details.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul>`;
     const material = (row.material || '').split('\n').map(s => s.trim()).filter(Boolean);
-    if (material.length) html += `<h4>Материал</h4><ul>${material.map(m => `<li>${m}</li>`).join('')}</ul>`;
+    if (material.length) html += `<h4>Материал</h4><ul>${material.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`;
     if (row.size_guide === 'hoodie') html += SIZE_GUIDE_HOODIE;
     else if (row.size_guide === 'tee') html += SIZE_GUIDE_TEE;
     const note = (row.production_note || '').split('\n').map(s => s.trim()).filter(Boolean);
-    if (note.length) html += `<p style="margin-top:14px;">${note.join('<br>')}</p>`;
+    if (note.length) html += `<p style="margin-top:14px;">${note.map(escapeHtml).join('<br>')}</p>`;
     return html;
 }
 
@@ -704,12 +710,12 @@ function renderCatalog() {
         return `
         <div class="product-card fade-up ${isSoldOut ? 'sold-out' : ''}" onclick="${isSoldOut ? '' : `openProduct(${p.id})`}" style="${isSoldOut ? 'pointer-events:none;' : 'cursor:pointer;'}">
             <div class="product-img-wrap">
-                <img src="${p.photos[0]}" class="product-img" alt="${p.name}">
+                <img src="${escapeHtml(p.photos[0])}" class="product-img" alt="${escapeHtml(p.name)}">
                 <button class="wish-btn ${wishlist.some(w=>w.id===p.id)?'liked':''}" aria-label="${wishlist.some(w=>w.id===p.id)?'Убрать из избранного':'Добавить в избранное'}" onclick="event.stopPropagation(); toggleWish(${p.id})">
                     <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 </button>
             </div>
-            <div class="product-name">${p.name}</div>
+            <div class="product-name">${escapeHtml(p.name)}</div>
             <div class="product-price">
                 <b>${priceWithDiscount}<span class="price-unit-sm"> р.</span></b>
                 ${p.oldPrice ? `<span class="old-price-sm">${p.oldPrice} р.</span>` : ''}
@@ -828,7 +834,7 @@ function ppAddToCart() {
 function renderPPPhotos() {
     document.getElementById('pp-main-photo').src = curP.photos[curPhotoIdx];
     document.getElementById('pp-main-photo').alt = curP.name;
-    document.getElementById('pp-thumbs').innerHTML = curP.photos.map((s,i)=>`<img class="pp-thumb ${i===curPhotoIdx?'active':''}" src="${s}" alt="${curP.name} — фото ${i+1}" onclick="curPhotoIdx=${i};renderPPPhotos()">`).join('');
+    document.getElementById('pp-thumbs').innerHTML = curP.photos.map((s,i)=>`<img class="pp-thumb ${i===curPhotoIdx?'active':''}" src="${escapeHtml(s)}" alt="${escapeHtml(curP.name)} — фото ${i+1}" onclick="curPhotoIdx=${i};renderPPPhotos()">`).join('');
 }
 
 function ppNext() { curPhotoIdx = (curPhotoIdx + 1) % curP.photos.length; renderPPPhotos(); }
@@ -888,10 +894,12 @@ function openDeliveryModal() {
 
     const nameEl = document.getElementById('order-name');
     const phoneEl = document.getElementById('order-phone');
-    if (currentUser.name) nameEl.value = currentUser.name;
-    if (currentUser.phone) phoneEl.value = currentUser.phone;
+    const tgEl = document.getElementById('order-tg');
+    nameEl.value = currentUser.name || '';
+    phoneEl.value = currentUser.phone || '';
+    tgEl.value = '';
 
-    const items = cart.map(i => i.name).join(', ');
+    const items = cart.map(i => escapeHtml(i.name)).join(', ');
     const total = cart.reduce((s,i) => s+i.price, 0);
     document.getElementById('order-summary-text').innerHTML =
         '<b>Ваш заказ:</b><br>' + items + '<br><b>Итого: ' + total.toLocaleString('ru') + ' р.</b>';
@@ -911,7 +919,7 @@ function closeDeliveryModal() {
 
 function isValidFullName(value) {
     const parts = value.trim().split(/\s+/).filter(Boolean);
-    return parts.length >= 2 && parts.every((p) => /^[A-Za-zА-ЯЁа-яё-]{2,}$/.test(p));
+    return parts.length >= 2 && parts.every((p) => /^(?=.*[A-Za-zА-ЯЁа-яё])[A-Za-zА-ЯЁа-яё-]{2,}$/.test(p));
 }
 
 function isValidPhone(value) {
@@ -955,8 +963,23 @@ function submitOrder() {
         return;
     }
 
+    // Свежая проверка "не распродано" прямо перед оформлением — товар мог уйти в
+    // sold_out, пока лежал в корзине (localStorage переживает перезагрузки страницы).
+    const soldOutItem = cart.find(i => PRODUCTS[i.id] && PRODUCTS[i.id].soldOut);
+    if (soldOutItem) {
+        alert(`«${soldOutItem.name}» больше не доступен — удалите его из корзины`);
+        return;
+    }
+
+    const submitBtn = document.getElementById('submit-order-btn');
+    submitBtn.disabled = true;
+
     const items = cart.map(i => i.name).join(', ');
     const total = cart.reduce((s,i) => s+i.price, 0);
+    // Сервер (create-payment) пересчитывает и берёт за основу реальную сумму по этим
+    // id из таблицы products — total выше нужен только для читаемости заказа в
+    // админке/Telegram, сумму к оплате клиент больше не диктует.
+    const itemsJson = cart.map(i => ({ id: i.id }));
     const date = new Date().toLocaleString('ru');
 
     // Один заказ на оба сценария (гость/залогинен) — иначе серверу (вебхуку оплаты) нечего
@@ -977,6 +1000,7 @@ function submitOrder() {
         tg: tg,
         items: items,
         total: total + ' р.',
+        items_json: itemsJson,
         pvz: pvzAddress,
         date: date,
         status: 'new',
@@ -987,6 +1011,7 @@ function submitOrder() {
         if (error) {
             alert('Не удалось оформить заказ, попробуйте ещё раз');
             console.log('submitOrder error:', error);
+            submitBtn.disabled = false;
             return;
         }
         const shortId = orderId.slice(-6).toUpperCase();
@@ -1006,11 +1031,17 @@ function submitOrder() {
         closeDeliveryModal();
 
         // Платёж создаёт сервер (там же, где секретный ключ ЮKassa — в браузере его быть
-        // не должно), и отдаёт ссылку на страницу оплаты.
-        fetch(SUPABASE_URL + '/functions/v1/create-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
-            body: JSON.stringify({ order_id: orderId })
+        // не должно), и отдаёт ссылку на страницу оплаты. Для залогиненного покупателя
+        // прикладываем его access token — create-payment сверяет его с order.uid, чтобы
+        // чужой заказ нельзя было оплатить, зная только его id.
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY };
+            if (session) headers.Authorization = `Bearer ${session.access_token}`;
+            return fetch(SUPABASE_URL + '/functions/v1/create-payment', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ order_id: orderId })
+            });
         })
             .then(r => r.json())
             .then(({ confirmation_url, error: payError }) => {
@@ -1028,6 +1059,7 @@ function submitOrder() {
     }).catch(err => {
         alert('Не удалось оформить заказ, попробуйте ещё раз');
         console.log('submitOrder error:', err);
+        submitBtn.disabled = false;
     });
 }
 
@@ -1071,6 +1103,10 @@ async function checkSuccess() {
 }
 
 function onPaymentConfirmed(order) {
+    // Убираем ?paid=true&order=... из адреса сразу — иначе повторный auth-событие
+    // (обновление токена, повторный вход, просто reload) снова найдёт "paid" и
+    // повторно отправит уведомление/откроет модалку.
+    window.history.replaceState({}, '', window.location.pathname);
     sendTelegramNotification(
         `🛍 <b>ЗАКАЗ ОПЛАЧЕН</b>\n\n` +
         `👤 Клиент: ${order.name || ''}\n` +
@@ -1100,8 +1136,11 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 
 function doReg() {
     const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, p = document.getElementById('reg-pass').value;
+    if (p.length < 8) { alert('Пароль должен быть не короче 8 символов'); return; }
     supabaseClient.auth.signUp({ email: e, password: p, options: { data: { name: n } } }).then(({ data, error }) => {
-        if (error) { alert(error.message); return; }
+        // Один и тот же ответ для новой и уже занятой почты — иначе форма регистрации
+        // становится оракулом "какие email есть в базе".
+        if (error) { alert('Не удалось зарегистрироваться, попробуйте ещё раз'); return; }
         if (!data.session) alert('Проверьте почту и подтвердите регистрацию, затем войдите.');
         closeAuth();
     });
@@ -1117,7 +1156,7 @@ function doLogout() { supabaseClient.auth.signOut().then(()=>location.reload());
 function renderNavProfile() {
     const dd = document.getElementById('profile-dropdown');
     if(currentUser) {
-        dd.innerHTML = `<div style="padding:15px; border-bottom:1px solid #333;">${currentUser.name}</div><a href="cabinet.html" style="display:block; padding:15px; cursor:pointer;">👤 Кабинет</a><div style="padding:15px; cursor:pointer; color:red;" onclick="doLogout()">🚪 Выход</div>`;
+        dd.innerHTML = `<div style="padding:15px; border-bottom:1px solid #333;">${escapeHtml(currentUser.name)}</div><a href="cabinet.html" style="display:block; padding:15px; cursor:pointer;">👤 Кабинет</a><div style="padding:15px; cursor:pointer; color:red;" onclick="doLogout()">🚪 Выход</div>`;
     } else {
        dd.innerHTML = `<div style="padding:15px; cursor:pointer;" onclick="openAuth()">👤 Войти</div><div style="padding:15px; cursor:pointer;" onclick="openAuth(); showReg()">✨ Регистрация</div>`;
     }
@@ -1285,9 +1324,9 @@ loadProductsFromSupabase();
     <div id="step-data" style="padding:24px;">
       <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#aaa; margin-bottom:16px;">Шаг 1 из 2 — Ваши данные</div>
       
-      <input id="order-name" class="order-input" type="text" placeholder="Имя и фамилия *" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
-      <input id="order-phone" class="order-input" type="tel" placeholder="Телефон * (+7...)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
-      <input id="order-tg" class="order-input" type="text" placeholder="Telegram @username (необязательно)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
+      <input id="order-name" class="order-input" type="text" maxlength="100" placeholder="Имя и фамилия *" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
+      <input id="order-phone" class="order-input" type="tel" maxlength="30" placeholder="Телефон * (+7...)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
+      <input id="order-tg" class="order-input" type="text" maxlength="50" placeholder="Telegram @username (необязательно)" style="width:100%;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;margin-bottom:10px;box-sizing:border-box;">
       
       <div style="background:#f9f9f9; border-radius:10px; padding:14px 16px; margin-bottom:16px; font-size:12px; line-height:1.6; color:#555;">
         <div id="order-summary-text" style=""></div>
@@ -1307,7 +1346,7 @@ loadProductsFromSupabase();
       </div>
 
       <div style="padding:16px 24px;">
-        <textarea id="order-address" class="order-input" placeholder="Город и адрес или удобный пункт выдачи *" style="width:100%;min-height:90px;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;box-sizing:border-box;resize:vertical;"></textarea>
+        <textarea id="order-address" class="order-input" maxlength="500" placeholder="Город и адрес или удобный пункт выдачи *" style="width:100%;min-height:90px;padding:14px 16px;border:1.5px solid #e5e5e5;border-radius:12px;font-size:14px;font-family:'Unbounded',sans-serif;box-sizing:border-box;resize:vertical;"></textarea>
         <div style="font-size:11px;color:#aaa;margin-top:8px;">Мы свяжемся с вами, чтобы согласовать точный способ и адрес доставки.</div>
       </div>
 

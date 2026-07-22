@@ -45,10 +45,11 @@ Deno.serve(async (req) => {
     return new Response('Server misconfigured', { status: 500 });
   }
 
+  // Fail closed: отсутствие заголовка — не повод пропускать проверку, а повод отказать.
   const forwardedFor = req.headers.get('x-forwarded-for') || '';
   const clientIp = forwardedFor.split(',')[0].trim();
-  if (clientIp && !isYooKassaIp(clientIp)) {
-    console.error('Уведомление с неожиданного IP', { clientIp });
+  if (!clientIp || !isYooKassaIp(clientIp)) {
+    console.error('Уведомление с неожиданного IP', { clientIp: clientIp || '(none)' });
     return new Response('Forbidden', { status: 403 });
   }
 

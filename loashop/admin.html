@@ -172,9 +172,23 @@ const SUPABASE_URL = 'https://ijtdynoghdrkevggwrbe.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vxvg7KTexbn20chFrLjJ5Q_DjgY35rB';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+// Показ UI — не граница безопасности сама по себе (это RLS/admins), но не должен
+// открываться для любого зарегистрированного покупателя.
 async function checkSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    session ? showAdmin() : showLogin();
+    if (!session) return showLogin();
+    const { data: admin } = await supabaseClient.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle();
+    if (!admin) {
+        await supabaseClient.auth.signOut();
+        return showLogin();
+    }
+    showAdmin();
 }
 
 function showLogin() {
@@ -247,7 +261,7 @@ async function loadProducts() {
         return `
         <div class="card" data-product-id="${p.id}">
             <div class="card-tag">Экспонат ${String(p.id).padStart(3,'0')}</div>
-            <h3>${p.name || ('Товар #' + p.id)}</h3>
+            <h3>${escapeHtml(p.name) || ('Товар #' + p.id)}</h3>
             <div class="row"><label class="inline">Цена, ₽</label><input type="number" class="f-price" value="${p.price_rub}"></div>
             <div class="row"><label class="inline">Старая цена</label><input type="number" class="f-old-price" value="${p.old_price ?? ''}"></div>
             <div class="row row-check"><input type="checkbox" class="f-sold-out" ${p.sold_out ? 'checked' : ''}> <span>Распродано</span></div>
@@ -361,7 +375,7 @@ async function loadOrders() {
 }
 
 function renderOrderCard(o) {
-    const customer = [o.name, o.phone, o.tg].filter(Boolean).join(' · ');
+    const customer = [o.name, o.phone, o.tg].filter(Boolean).map(escapeHtml).join(' · ');
     const statusOptions = Object.keys(ORDER_STATUS_LABELS).map(s =>
         `<option value="${s}" ${(o.status || 'new') === s ? 'selected' : ''}>${ORDER_STATUS_LABELS[s]}</option>`
     ).join('');
@@ -370,11 +384,11 @@ function renderOrderCard(o) {
         <div class="order-top">
             <span class="order-id">№ ${o.id.slice(-6).toUpperCase()}</span>
             <span class="pay-pill ${o.payment_status === 'paid' ? 'paid' : 'awaiting'}">${o.payment_status === 'paid' ? 'Оплачен' : 'Ожидает оплаты'}</span>
-            <span class="order-total">${o.total || '—'}</span>
+            <span class="order-total">${escapeHtml(o.total) || '—'}</span>
         </div>
-        <div class="order-customer">${customer || 'Гость'}${o.pvz ? ' · ПВЗ: ' + o.pvz : ''}</div>
-        <div class="order-items">${o.items || '—'}</div>
-        <div class="order-customer" style="margin-bottom:0;">${o.date || ''}</div>
+        <div class="order-customer">${customer || 'Гость'}${o.pvz ? ' · ПВЗ: ' + escapeHtml(o.pvz) : ''}</div>
+        <div class="order-items">${escapeHtml(o.items) || '—'}</div>
+        <div class="order-customer" style="margin-bottom:0;">${escapeHtml(o.date)}</div>
         <div class="order-controls" style="margin-top:10px;">
             <select style="width:auto; margin-bottom:0;" onchange="updateOrderStatus('${o.id}', this.value, this)">${statusOptions}</select>
             <span class="status"></span>
